@@ -260,6 +260,7 @@ def main():
 
     finally:
         parsed = parse_fio_results(test_result)
+        print()
         pprint(parsed)
 
 
