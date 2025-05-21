@@ -195,9 +195,9 @@ def parse_fio_results(job_results):
 
         parsed_results.append({
             'name': job_name,
-            'speed': job_speed,
+            'speed_mbs': job_speed,
             'iops': job_iops,
-            'latency': job_lat
+            'latency_us': job_lat
         })
     return parsed_results
 
