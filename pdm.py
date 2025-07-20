@@ -131,8 +131,8 @@ def run_fio_test(test_path):
         original_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, signal_handler)
 
-        # run a progress bar for 275 seconds in a separate thread
-        total_time = 275
+        # run a progress bar for 270 seconds in a separate thread
+        total_time = 270
         progress_thread = threading.Thread(
             target=run_progress_bar, args=(total_time, "FIO Progress", stop_progress))
         # Make it a daemon thread so it exits when the main thread exits
@@ -162,8 +162,6 @@ def run_fio_test(test_path):
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         results_dir = os.path.join(os.getcwd(), 'results')
         os.makedirs(results_dir, exist_ok=True)
-        with open(os.path.join(results_dir, f"{timestamp}_log.json"), 'w') as json_file:
-            json.dump(fio_output, json_file, indent=4)
 
         # Restore the original signal handler
         signal.signal(signal.SIGINT, original_handler)
@@ -186,6 +184,9 @@ def make_humanreadable_time(time_ns):
 
 def parse_fio_results(job_results):
     # we need to get all jobs names, speed, iops, and latencies
+    if 'jobs' not in job_results:
+        print("No jobs found in the fio results.")
+        return []
     parsed_results = []
     for job in job_results['jobs']:
         job_name = job['jobname']
@@ -259,6 +260,21 @@ def main():
         test_result = run_fio_test(test_path)
 
     finally:
+        try:
+            os.makedirs("out", exist_ok=True)
+        except Exception as e:
+            print(f"Error creating output directory: {e}")
+            return
+
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+        try:
+            with open(f"out/fio_result_{timestamp}.json", 'w') as f:
+                json.dump(test_result, f, indent=4)
+        except Exception as e:
+            print(f"Error saving test results: {e}")
+            return
+        
         parsed = parse_fio_results(test_result)
         print()
         pprint(parsed)
