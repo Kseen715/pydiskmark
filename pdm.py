@@ -167,13 +167,16 @@ def run_fio_test(test_path):
         # Parse JSON output
         fio_output = json.loads(stdout)
 
-        # Save json to ./results/{datetime}_log.json
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        results_dir = os.path.join(os.getcwd(), 'results')
-        os.makedirs(results_dir, exist_ok=True)
-
         # Restore the original signal handler
         signal.signal(signal.SIGINT, original_handler)
+
+        # delete fio file if it exists
+        try:
+            file_path = fio_output["global options"]["directory"] + fio_output["global options"]["filename"]
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting fio file: {e}")
 
         return fio_output
 
@@ -210,6 +213,41 @@ def parse_fio_results(job_results):
             'latency_us': job_lat
         })
     return parsed_results
+
+
+def spprint_fio_to_cdm8(data_json):
+    sb_string = ""
+    spl_out = []
+    for job in data_json:
+        spl = job['name'].split('-')
+        spl[0] = spl[0].replace('SEQ', 'Sequential').replace('RND', 'Random')
+        # split 1M into [[1, M]
+        spl[2] = [int(spl[2][:-1]), spl[2][-1].replace('K', 'KiB').replace('M', 'MiB')]
+        spl[3] = int(spl[3].split('Q')[1])
+        spl[4] = int(spl[4].split('T')[1])
+        spl.append(job['speed_mbs'])
+        spl.append(job['iops'])
+        spl.append(job['latency_us'])
+        spl_out.append(spl)
+
+    sb_string += "--------------------------------------------------------------------------------\n"
+    sb_string += "* MB/s = 1,000,000 bytes/s [SATA/600 = 600,000,000 bytes/s]\n"
+    sb_string += "* KB = 1000 bytes, KiB = 1024 bytes\n\n"
+    sb_string += "[Read]\n"
+    for job in spl_out:
+        if job[1] == 'R':
+            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
+
+    sb_string += "\n[Write]\n"
+    for job in spl_out:
+        if job[1] == 'W':
+            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
+
+    sb_string += "\n" + f"{'Date: ':>9}" + time.strftime("%Y-%m-%d %H:%M:%S") + "\n"
+    sb_string += f"{'OS: ':>9}" + platform.system() + " " + platform.release()
+    sb_string += " [" + platform.platform() + "]\n"
+
+    return sb_string
 
 
 def main():
@@ -263,6 +301,13 @@ def main():
         test_path = f"{selected_disk['path']}/"
     # print(test_path)
 
+    test_hash = hash_data({
+        'platform': platform.system(),
+        'disk_name': selected_disk['name'],
+        'test_path': test_path,
+        'date': time.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+
     try:
         print(
             f"\nStarting FIO Disk Speed Tests on {selected_disk['name']}...\n")
@@ -278,7 +323,7 @@ def main():
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
         try:
-            with open(f"out/fio_result_{timestamp}_{hash_data(test_result)}.json", 'w') as f:
+            with open(f"out/fio_result_{timestamp}_{test_hash}.json", 'w') as f:
                 json.dump(test_result, f, indent=4)
         except Exception as e:
             print(f"Error saving test results: {e}")
@@ -287,54 +332,23 @@ def main():
         parsed = parse_fio_results(test_result)
 
         try:
-            with open(f"out/pydiskmark_result_{timestamp}_{hash_data(parsed)}.json", 'w') as f:
+            with open(f"out/pydiskmark_result_{timestamp}_{test_hash}.json", 'w') as f:
                 json.dump(parsed, f, indent=4)
         except Exception as e:
             print(f"Error saving parsed results: {e}")
             return
         
-        print()
-        pprint(parsed)
+        cdm8_res = spprint_fio_to_cdm8(parsed)
 
+        try:
+            with open(f"out/pydiskmark_cdm8_{timestamp}_{test_hash}.txt", 'w') as f:
+                f.write(cdm8_res)
+        except Exception as e:
+            print(f"Error saving CDM8 formatted results: {e}")
+            return
+        
+        print(cdm8_res)
 
-def spprint_fio_to_cdm8(data_json):
-    sb_string = ""
-    spl_out = []
-    for job in data_json:
-        spl = job['name'].split('-')
-        spl[0] = spl[0].replace('SEQ', 'Sequential').replace('RND', 'Random')
-        # split 1M into [[1, M]
-        spl[2] = [int(spl[2][:-1]), spl[2][-1].replace('K', 'KiB').replace('M', 'MiB')]
-        spl[3] = int(spl[3].split('Q')[1])
-        spl[4] = int(spl[4].split('T')[1])
-        spl.append(job['speed_mbs'])
-        spl.append(job['iops'])
-        spl.append(job['latency_us'])
-        spl_out.append(spl)
-
-    sb_string += "--------------------------------------------------------------------------------\n"
-    sb_string += "* MB/s = 1,000,000 bytes/s [SATA/600 = 600,000,000 bytes/s]\n"
-    sb_string += "* KB = 1000 bytes, KiB = 1024 bytes\n\n"
-    sb_string += "[Read]\n"
-    for job in spl_out:
-        if job[1] == 'R':
-            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
-
-    sb_string += "\n[Write]\n"
-    for job in spl_out:
-        if job[1] == 'W':
-            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
-
-    sb_string += "\n" + f"{'Date: ':>9}" + time.strftime("%Y-%m-%d %H:%M:%S") + "\n"
-    sb_string += f"{'OS: ':>9}" + platform.system() + " " + platform.release()
-    sb_string += " [" + platform.platform() + "]\n"
-
-    return sb_string
 
 if __name__ == '__main__':
-    # read json
-    with open('out/pydiskmark_result_20250726-203743_f3b69e1f.json', 'r') as f:
-        data_json = json.load(f)
-    print(spprint_fio_to_cdm8(data_json))
-    exit()
     main()
