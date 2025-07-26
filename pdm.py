@@ -313,6 +313,8 @@ def spprint_fio_to_cdm8(data_json):
         spl_out.append(spl)
 
     sb_string += "--------------------------------------------------------------------------------\n"
+    sb_string += "* MB/s = 1,000,000 bytes/s [SATA/600 = 600,000,000 bytes/s]\n"
+    sb_string += "* KB = 1000 bytes, KiB = 1024 bytes\n\n"
     sb_string += "[Read]\n"
     for job in spl_out:
         if job[1] == 'R':
@@ -322,6 +324,10 @@ def spprint_fio_to_cdm8(data_json):
     for job in spl_out:
         if job[1] == 'W':
             sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
+
+    sb_string += "\n" + f"{'Date: ':>9}" + time.strftime("%Y-%m-%d %H:%M:%S") + "\n"
+    sb_string += f"{'OS: ':>9}" + platform.system() + " " + platform.release()
+    sb_string += " [" + platform.platform() + "]\n"
 
     return sb_string
 
