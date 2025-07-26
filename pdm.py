@@ -17,6 +17,15 @@ else:
 
 FIO_CONFIG = 'config/cdm8.fio'
 
+def hash_data(data) -> str:
+    """Generate a SHA-256 hash of the given data."""
+    import hashlib
+    sha256 = hashlib.sha256()
+    # convert data to string
+    data = str(data)
+    sha256.update(data.encode('utf-8'))
+    return sha256.hexdigest()[:8]  # Return first 8 characters for brevity
+
 
 def progress_bar(iteration, total, prefix='', length=40, fill='█', print_end="\r"):
     """Display a progress bar in the console."""
@@ -132,7 +141,7 @@ def run_fio_test(test_path):
         signal.signal(signal.SIGINT, signal_handler)
 
         # run a progress bar for 270 seconds in a separate thread
-        total_time = 270
+        total_time = 70
         progress_thread = threading.Thread(
             target=run_progress_bar, args=(total_time, "FIO Progress", stop_progress))
         # Make it a daemon thread so it exits when the main thread exits
@@ -269,16 +278,57 @@ def main():
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
         try:
-            with open(f"out/fio_result_{timestamp}.json", 'w') as f:
+            with open(f"out/fio_result_{timestamp}_{hash_data(test_result)}.json", 'w') as f:
                 json.dump(test_result, f, indent=4)
         except Exception as e:
             print(f"Error saving test results: {e}")
             return
         
         parsed = parse_fio_results(test_result)
+
+        try:
+            with open(f"out/pydiskmark_result_{timestamp}_{hash_data(parsed)}.json", 'w') as f:
+                json.dump(parsed, f, indent=4)
+        except Exception as e:
+            print(f"Error saving parsed results: {e}")
+            return
+        
         print()
         pprint(parsed)
 
 
+def spprint_fio_to_cdm8(data_json):
+    sb_string = ""
+    spl_out = []
+    for job in data_json:
+        spl = job['name'].split('-')
+        spl[0] = spl[0].replace('SEQ', 'Sequential').replace('RND', 'Random')
+        # split 1M into [[1, M]
+        spl[2] = [int(spl[2][:-1]), spl[2][-1].replace('K', 'KiB').replace('M', 'MiB')]
+        spl[3] = int(spl[3].split('Q')[1])
+        spl[4] = int(spl[4].split('T')[1])
+        spl.append(job['speed_mbs'])
+        spl.append(job['iops'])
+        spl.append(job['latency_us'])
+        spl_out.append(spl)
+
+    sb_string += "--------------------------------------------------------------------------------\n"
+    sb_string += "[Read]\n"
+    for job in spl_out:
+        if job[1] == 'R':
+            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
+
+    sb_string += "\n[Write]\n"
+    for job in spl_out:
+        if job[1] == 'W':
+            sb_string += f"{job[0]:>10} {job[2][0]:>3} {job[2][1]} (Q= {job[3]:>2}, T= {job[4]}): {job[5]:>8} MB/s [ {round(job[6], 1):>8} IOPS] < {job[7]:>8} us>\n"
+
+    return sb_string
+
 if __name__ == '__main__':
+    # read json
+    with open('out/pydiskmark_result_20250726-203743_f3b69e1f.json', 'r') as f:
+        data_json = json.load(f)
+    print(spprint_fio_to_cdm8(data_json))
+    exit()
     main()
