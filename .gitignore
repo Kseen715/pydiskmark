@@ -2,3 +2,11 @@
 __pycache__/
 results/
 out/
+.fio-diskmark
+temp.*
+result.*
+
+# Added by cargo
+
+/target
+Cargo.lock

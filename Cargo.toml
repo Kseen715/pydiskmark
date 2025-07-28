@@ -1,0 +1,29 @@
+[package]
+name = "pydiskmark"
+version = "0.1.0"
+edition = "2024"
+
+[profile.dev]
+opt-level = 0
+lto = "off"
+incremental = true
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[profile.test]
+opt-level = 0
+lto = "off"
+incremental = true
+
+[profile.bench]
+opt-level = 3
+lto = true
+
+[dependencies]
+chrono = "0.4.41"
+clap = { version = "4.5.41", features = ["derive"] }
+colored = "3.0.0"
+configparser = { version = "3.1.0", features = ["indexmap"] }
+log = "0.4.27"
