@@ -15,6 +15,44 @@ struct Args {
     /// Log level for the application (e.g., trace, debug, info, warn, error)
     #[arg(long, default_value = "info")]
     log_level: Option<String>,
+    /// Backend to use for the application (e.g., "fio", "custom")
+    #[arg(long, default_value = "fio")]
+    backend: Option<String>,
+}
+
+/// Default bar style for progress bars
+///
+/// Usage example:
+/// ```rust
+/// set_progress_style!(bar);
+/// set_progress_style!(bar, "[{bar}] {pos}/{len}");
+/// set_progress_style!(bar, "[{bar}] {pos}/{len}", "##>");
+/// ```
+#[allow(unused_macros)]
+macro_rules! set_progress_style {
+    ($bar:expr) => {
+        $bar.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}"
+            )
+            .unwrap()
+            .progress_chars("##-")
+        );
+    };
+    ($bar:expr, $template:expr) => {
+        $bar.set_style(
+            ProgressStyle::with_template($template)
+            .unwrap()
+            .progress_chars("##-")
+        );
+    };
+    ($bar:expr, $template:expr, $chars:expr) => {
+        $bar.set_style(
+            ProgressStyle::with_template($template)
+            .unwrap()
+            .progress_chars($chars)
+        );
+    };
 }
 
 mod fio {
@@ -94,13 +132,7 @@ mod fio {
         use std::process::Command;
         let mut result = Vec::new();
         let bar = ProgressBar::new(jobs.len() as u64);
-        bar.set_style(
-            ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}"
-            )
-                .unwrap()
-                .progress_chars("##-")
-        );
+        set_progress_style!(bar);
         bar.set_message("Running FIO jobs");
         for job in jobs {
             let job_str = job.writes();
@@ -172,7 +204,7 @@ fn main() {
     log::debug!(
         "{:?}",
         fio_result[0]
-            .get("fio version")
+            .get("global options")
             .unwrap_or(&serde_json::Value::String("unknown".to_string()))
     );
 }
