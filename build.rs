@@ -1,7 +1,7 @@
 fn main() {
-    println!("cargo:rustc-link-search=native=./src");
-    println!("cargo:rustc-link-search=native=/usr/local/lib");
-    println!("cargo:include=/usr/local/include");
+    // println!("cargo:rustc-link-search=native=./src");
+    // println!("cargo:rustc-link-search=native=/usr/local/lib");
+    // println!("cargo:include=/usr/local/include");
     
 
     println!("cargo:rustc-attr=allow(non_upper_case_globals)");
